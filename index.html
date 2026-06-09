@@ -1,0 +1,613 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlashDash - Instant Parcel Delivery</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet.js Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- App Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>FlashDash</h1>
+                    <span>Parcel Courier</span>
+                </div>
+            </div>
+
+            <nav class="nav-links">
+                <li class="nav-item active" data-view="dashboard">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li class="nav-item" data-view="booking" id="nav-book-delivery">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Book Delivery</span>
+                </li>
+                <li class="nav-item" data-view="tracking" id="nav-track-active" style="display: none;">
+                    <i class="fa-solid fa-location-crosshairs"></i>
+                    <span>Track Active</span>
+                </li>
+                <li class="nav-item" data-view="history">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>History</span>
+                </li>
+                <li class="nav-item" data-view="bank">
+                    <i class="fa-solid fa-building-columns"></i>
+                    <span>Bank Account</span>
+                </li>
+            </nav>
+
+            <!-- Small Bank Info Overview in Sidebar -->
+            <div class="wallet-card-small" id="sidebar-bank-card">
+                <span class="label" id="sidebar-bank-status-lbl">Bank Not Linked</span>
+                <div class="balance" id="sidebar-bank-display">₹0.00</div>
+                <button onclick="switchView('bank')" id="sidebar-bank-action-btn"><i class="fa-solid fa-link"></i> Link Bank</button>
+            </div>
+
+            <!-- Theme Switcher -->
+            <div class="theme-switch">
+                <span>Dark Mode</span>
+                <label class="switch">
+                    <input type="checkbox" id="theme-toggle" checked>
+                    <span class="slider-toggle"></span>
+                </label>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <!-- Fullscreen Leaflet Map -->
+            <div id="map" class="map-viewport"></div>
+
+            <!-- Floating Interactive Card Overlay -->
+            <div class="interactive-panel">
+                
+                <!-- 1. DASHBOARD VIEW -->
+                <div id="dashboard-view" class="view-panel active">
+                    <div class="panel-header">
+                        <h2>Dashboard</h2>
+                        <i class="fa-solid fa-circle-user fa-xl" style="color: var(--text-muted);"></i>
+                    </div>
+                    <div class="panel-body">
+                        <div class="quick-book-hero">
+                            <i class="fa-solid fa-box-open fa-3x" style="color: var(--primary);"></i>
+                            <h3>Need to send a parcel?</h3>
+                            <p>Enter pickup/dropoff pincodes for any location in India. Type your exact house details, specify your item description, and pay securely via bank transfer.</p>
+                            <button class="btn-primary" onclick="switchView('booking')" style="width: 100%; margin-top: 10px;">
+                                <i class="fa-solid fa-plus"></i> Book Delivery Now
+                            </button>
+                        </div>
+
+                        <div class="welcome-grid">
+                            <div class="stat-card">
+                                <span class="num" id="stat-trips">0</span>
+                                <span class="lbl">Deliveries Done</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="num" id="stat-spent">₹0</span>
+                                <span class="lbl">Total Spent</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label>Recent Deliveries</label>
+                            <div class="history-list" id="dashboard-recent-list">
+                                <p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">No recent deliveries. Start by booking one!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. BOOKING WIZARD VIEW -->
+                <div id="booking-view" class="view-panel">
+                    <div class="panel-header">
+                        <h2>Book Delivery</h2>
+                        <span id="booking-step-indicator" style="font-size: 12px; color: var(--primary); font-weight: 600;">Step 1 of 4</span>
+                    </div>
+                    
+                    <div class="panel-body">
+                        <!-- Stepper dots -->
+                        <div class="stepper">
+                            <div class="stepper-progress" id="step-progress-bar"></div>
+                            <div class="step active" id="step-1-dot">1</div>
+                            <div class="step" id="step-2-dot">2</div>
+                            <div class="step" id="step-3-dot">3</div>
+                            <div class="step" id="step-4-dot">4</div>
+                        </div>
+
+                        <!-- booking forms -->
+                        <!-- STEP 1: ROUTE LOCATIONS (PINCODES) -->
+                        <div class="booking-step-section" id="booking-step-1">
+                            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Enter any 6-digit Indian pincode. The location is geocoded dynamically in real-time.</p>
+                            
+                            <!-- Pickup inputs -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-lg); margin-bottom: 16px;">
+                                <h4 style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px;"><i class="fa-solid fa-circle-arrow-up"></i> Pickup Address Details</h4>
+                                <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; margin-bottom: 12px;">
+                                    <div class="form-group">
+                                        <label>Pincode</label>
+                                        <div class="input-wrapper" style="padding: 0;">
+                                            <input type="text" id="pickup-pincode" placeholder="e.g. 110001" maxlength="6" style="padding-left: 12px;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Resolved Area</label>
+                                        <div class="input-wrapper" style="padding: 0;">
+                                            <input type="text" id="pickup-area" placeholder="Type pincode..." readonly disabled style="padding-left: 12px; opacity: 0.8; font-weight: 500;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>House No. / Building / Street Address</label>
+                                    <div class="input-wrapper" style="padding: 0;">
+                                        <input type="text" id="pickup-house" placeholder="Flat 402, Block A, Green Meadows..." disabled style="padding-left: 12px;">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Dropoff inputs -->
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-lg);">
+                                <h4 style="font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 12px;"><i class="fa-solid fa-circle-arrow-down"></i> Dropoff Address Details</h4>
+                                <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; margin-bottom: 12px;">
+                                    <div class="form-group">
+                                        <label>Pincode</label>
+                                        <div class="input-wrapper" style="padding: 0;">
+                                            <input type="text" id="dropoff-pincode" placeholder="e.g. 400001" maxlength="6" style="padding-left: 12px;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Resolved Area</label>
+                                        <div class="input-wrapper" style="padding: 0;">
+                                            <input type="text" id="dropoff-area" placeholder="Type pincode..." readonly disabled style="padding-left: 12px; opacity: 0.8; font-weight: 500;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>House No. / Building / Street Address</label>
+                                    <div class="input-wrapper" style="padding: 0;">
+                                        <input type="text" id="dropoff-house" placeholder="House 12, 5th Cross, Indiranagar..." disabled style="padding-left: 12px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 2: PARCEL DETAILS (MANUAL CATEGORY) -->
+                        <div class="booking-step-section" id="booking-step-2" style="display: none;">
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label>What are you delivering?</label>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-box-open"></i>
+                                    <input type="text" id="parcel-category" placeholder="Type items (e.g. Documents, Laptop, Clothes, Food)" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Parcel Weight</label>
+                                <div class="weight-slider-container">
+                                    <div class="weight-display">
+                                        <span>Estimated Weight</span>
+                                        <span class="weight-value" id="weight-value-lbl">0.5 kg</span>
+                                    </div>
+                                    <input type="range" min="0.1" max="50" step="0.1" value="0.5" class="slider" id="weight-range-slider">
+                                    
+                                    <div class="weight-presets">
+                                        <button class="preset-btn active" data-val="0.5">Doc (&lt;1kg)</button>
+                                        <button class="preset-btn" data-val="3">Box (3kg)</button>
+                                        <button class="preset-btn" data-val="12">Heavy (12kg)</button>
+                                        <button class="preset-btn" data-val="35">Cargo (35kg)</button>
+                                    </div>
+                                </div>
+                                <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">* Vehicles will be auto-assigned. Weight above 10kg incurs distance-proportional surcharges.</span>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: AUTOMATIC VEHICLE AND PRIORITY SPEED SELECTOR -->
+                        <div class="booking-step-section" id="booking-step-3" style="display: none;">
+                            <!-- Auto-assigned vehicle display -->
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label>System Assigned Vehicle</label>
+                                <div id="assigned-vehicle-container">
+                                    <!-- Populated dynamically via JS -->
+                                </div>
+                            </div>
+
+                            <!-- Delivery Speed Priority Selector -->
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label>Choose Delivery Priority</label>
+                                <div class="speed-grid">
+                                    <div class="speed-card selected" id="speed-normal" data-speed="normal">
+                                        <div class="speed-icon"><i class="fa-solid fa-truck-ramp-box"></i></div>
+                                        <div class="speed-title">Normal</div>
+                                        <div class="speed-meta">Standard rates & ETA</div>
+                                    </div>
+                                    <div class="speed-card" id="speed-priority" data-speed="speed">
+                                        <div class="speed-icon"><i class="fa-solid fa-bolt"></i></div>
+                                        <div class="speed-title">Speed Parcel</div>
+                                        <div class="speed-meta">+ ₹50 + 20% rate</div>
+                                    </div>
+                                    <div class="speed-card" id="speed-ultra" data-speed="ultra">
+                                        <div class="speed-icon"><i class="fa-solid fa-gauge-high"></i></div>
+                                        <div class="speed-title">Ultra Fast</div>
+                                        <div class="speed-meta">+ ₹120 + 50% rate</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Total Summary row -->
+                            <div class="fare-breakdown">
+                                <div class="fare-row">
+                                    <span>Distance:</span>
+                                    <span id="summary-distance">0.0 km</span>
+                                </div>
+                                <div class="fare-row">
+                                    <span>Base Courier Fare:</span>
+                                    <span id="summary-base-charge">₹0</span>
+                                </div>
+                                <div class="fare-row">
+                                    <span>Priority Speed Surcharge:</span>
+                                    <span id="summary-speed-charge">₹0</span>
+                                </div>
+                                <div class="fare-row">
+                                    <span>Weight-Distance Surcharge (&gt;10kg):</span>
+                                    <span id="summary-weight-charge">₹0</span>
+                                </div>
+                                <div class="fare-row total">
+                                    <span>Total Price:</span>
+                                    <span id="summary-total-fare">₹0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 4: DETAILS AND PAYMENT -->
+                        <div class="booking-step-section" id="booking-step-4" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <div class="form-group">
+                                    <label>Sender Mobile</label>
+                                    <div class="input-wrapper">
+                                        <i class="fa-solid fa-phone"></i>
+                                        <input type="text" id="sender-phone" value="9876543210" placeholder="Sender phone">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Recipient Name</label>
+                                    <div class="input-wrapper">
+                                        <i class="fa-solid fa-user"></i>
+                                        <input type="text" id="recipient-name" placeholder="Receiver name">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 8px;">
+                                <label>Recipient Mobile</label>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-phone"></i>
+                                    <input type="text" id="recipient-phone" placeholder="Recipient phone">
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 8px; margin-bottom: 12px;">
+                                <label>Payment Method</label>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-wallet"></i>
+                                    <select id="payment-method">
+                                        <option value="bank">Direct Bank Transfer</option>
+                                        <option value="cod">Cash on Delivery (COD)</option>
+                                    </select>
+                                </div>
+                                <span id="bank-payment-alert" style="font-size: 11px; color: var(--danger); display: none; margin-top: 4px;">
+                                    <i class="fa-solid fa-triangle-exclamation"></i> No bank account linked. <a href="#" onclick="switchView('bank')" style="color:var(--primary); text-decoration: underline;">Link bank account first</a>.
+                                </span>
+                            </div>
+
+                            <div class="fare-breakdown">
+                                <div class="fare-row">
+                                    <span>Fare Payable:</span>
+                                    <span id="checkout-amount" style="color: var(--primary); font-weight: 700;">₹0</span>
+                                </div>
+                                <div class="fare-row">
+                                    <span>Payment Mode:</span>
+                                    <span id="checkout-method-lbl" style="font-weight: 600;">Direct Bank Transfer</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Navigation controls -->
+                        <div class="btn-group-row" style="margin-top: 10px;">
+                            <button class="btn-secondary" id="booking-back-btn" style="display: none;">Back</button>
+                            <div style="grid-column: span 2; display: flex; gap: 12px; width: 100%;">
+                                <button class="btn-secondary" id="booking-cancel-btn" style="flex: 1;">Cancel</button>
+                                <button class="btn-primary" id="booking-next-btn" style="flex: 2;">
+                                    <span>Next</span> <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. ACTIVE TRACKING VIEW -->
+                <div id="tracking-view" class="view-panel">
+                    <div class="panel-header">
+                        <h2>Live Tracking</h2>
+                        <span id="tracking-order-id" style="font-size: 11px; color: var(--text-muted);">ID: #FDS-98234</span>
+                    </div>
+
+                    <div class="panel-body">
+                        <!-- Search state -->
+                        <div id="tracking-search-state" class="tracking-card">
+                            <div class="status-indicator">
+                                <div class="radar-ring">
+                                    <i class="fa-solid fa-magnifying-glass-location" style="color: var(--primary); font-size: 20px;"></i>
+                                </div>
+                                <div>
+                                    <h3 style="font-weight: 700; font-size: 16px;">Matching Near Drivers...</h3>
+                                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Searching bikes & trucks within 3km radius.</p>
+                                </div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.1); border-radius: var(--radius-md); padding: 12px; font-size: 12px; border: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                    <span>Fare Reserved:</span>
+                                    <span id="tracking-search-fare" style="font-weight:700; color:var(--primary);">₹0</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>Parcel Class:</span>
+                                    <span id="tracking-search-class" style="font-weight:600;">Electronics (3.2 kg)</span>
+                                </div>
+                            </div>
+                            <button class="btn-secondary" id="cancel-matching-btn" style="width: 100%;">Cancel Booking</button>
+                        </div>
+
+                        <!-- Active State -->
+                        <div id="tracking-active-state" style="display: none; flex-direction: column; gap: 20px;">
+                            <div class="driver-info-block">
+                                <div style="display: flex; align-items: center; gap: 14px;">
+                                    <div class="driver-avatar">
+                                        <i class="fa-solid fa-user-ninja fa-2x" style="color: var(--primary); margin: 12px;"></i>
+                                    </div>
+                                    <div class="driver-meta">
+                                        <h4 id="driver-name">Rohan Sharma</h4>
+                                        <div class="driver-rating">
+                                            <i class="fa-solid fa-star"></i>
+                                            <span id="driver-rating-val">4.9</span>
+                                            <span style="color: var(--text-muted); font-size: 11px;">(1.2k rides)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span id="driver-vehicle-no" style="background: var(--primary); color: #000; font-weight: 700; padding: 4px 8px; border-radius: var(--radius-sm); font-size: 12px;">KA-03-JY-4921</span>
+                                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="driver-vehicle-type">Flash Bike</div>
+                                </div>
+                            </div>
+
+                            <!-- Live status timeline -->
+                            <div class="tracking-card">
+                                <h4 style="font-size: 14px; font-weight: 700;">Status Updates</h4>
+                                <div class="timeline">
+                                    <div class="timeline-step completed" id="track-step-1">
+                                        <div>Booking Confirmed</div>
+                                    </div>
+                                    <div class="timeline-step" id="track-step-2">
+                                        <div>Driver heading to Pickup location</div>
+                                    </div>
+                                    <div class="timeline-step" id="track-step-3">
+                                        <div>Package collected by driver</div>
+                                    </div>
+                                    <div class="timeline-step" id="track-step-4">
+                                        <div>Out for Delivery</div>
+                                    </div>
+                                    <div class="timeline-step" id="track-step-5">
+                                        <div>Delivered successfully</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Simulation Controls to let user speed up or complete it -->
+                            <div style="background: rgba(157, 78, 221, 0.08); border: 1px solid rgba(157, 78, 221, 0.15); border-radius: var(--radius-md); padding: 16px;">
+                                <h5 style="font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; text-transform: uppercase;">Simulation Dashboard</h5>
+                                <p style="font-size: 11px; color: var(--text-medium); margin-bottom: 12px;">Since this is a demo, you can speed up the driver's travel time or force completion.</p>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn-secondary" id="sim-speedup-btn" style="flex: 1; padding: 8px 12px; font-size: 12px;">
+                                        <i class="fa-solid fa-forward"></i> Speed 2x
+                                    </button>
+                                    <button class="btn-primary" id="sim-complete-btn" style="flex: 1; padding: 8px 12px; font-size: 12px; background: var(--secondary); color: #000; box-shadow: 0 4px 10px rgba(6, 214, 160, 0.25);">
+                                        <i class="fa-solid fa-circle-check"></i> Instantly Deliver
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. HISTORY VIEW -->
+                <div id="history-view" class="view-panel">
+                    <div class="panel-header">
+                        <h2>Delivery History</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="history-list" id="history-list-container">
+                            <!-- Populated dynamically -->
+                            <p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;">No delivery history found.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. BANK ACCOUNT INTEGRATION VIEW -->
+                <div id="bank-view" class="view-panel">
+                    <div class="panel-header">
+                        <h2>Linked Bank Account</h2>
+                    </div>
+                    <div class="panel-body">
+                        <!-- STATE A: NO BANK ACCOUNT LINKED -->
+                        <div id="bank-setup-form-container" style="display: flex; flex-direction: column; gap: 16px;">
+                            <p style="color: var(--text-muted); font-size: 13px;">Directly pay from your bank account for secure deliveries. Link your account below to get started.</p>
+                            
+                            <div class="form-group">
+                                <label>Select Bank</label>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-building-columns"></i>
+                                    <select id="bank-name-select">
+                                        <option value="State Bank of India">State Bank of India (SBI)</option>
+                                        <option value="HDFC Bank">HDFC Bank</option>
+                                        <option value="ICICI Bank">ICICI Bank</option>
+                                        <option value="Axis Bank">Axis Bank</option>
+                                        <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Account Holder Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-user"></i>
+                                    <input type="text" id="bank-holder-input" placeholder="Enter full name" value="John Doe">
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 12px;">
+                                <div class="form-group">
+                                    <label>Account Number</label>
+                                    <div class="input-wrapper" style="padding: 0;">
+                                        <input type="text" id="bank-account-input" placeholder="987600124921" style="padding-left:14px;" value="987600124921">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>IFSC Code</label>
+                                    <div class="input-wrapper" style="padding: 0;">
+                                        <input type="text" id="bank-ifsc-input" placeholder="HDFC0000124" style="padding-left:14px; text-transform: uppercase;" value="HDFC0000124">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Create 4-Digit Secure UPI PIN</label>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-key"></i>
+                                    <input type="password" id="bank-pin-input" placeholder="Type 4 digits (e.g. 1234)" maxlength="4" pattern="\d*">
+                                </div>
+                                <span style="font-size: 11px; color: var(--text-muted);">* Used to authorize transaction payments during checkout booking.</span>
+                            </div>
+
+                            <button class="btn-primary" id="bank-link-submit-btn" style="margin-top: 10px;">
+                                <i class="fa-solid fa-circle-check"></i> Link Bank Account
+                            </button>
+                        </div>
+
+                        <!-- STATE B: BANK ACCOUNT LINKED -->
+                        <div id="bank-details-container" style="display: none; flex-direction: column; gap: 20px;">
+                            <!-- Futuristic glass passbook debit card -->
+                            <div class="bank-card-glass">
+                                <div class="card-chip"></div>
+                                <div class="card-bank-name" id="card-bank-name-lbl">HDFC Bank</div>
+                                <div class="card-wifi"><i class="fa-solid fa-wifi"></i></div>
+                                <div class="card-number" id="card-number-lbl">XXXX XXXX XXXX 4921</div>
+                                <div style="display: flex; justify-content: space-between; align-items: flex-end; width:100%;">
+                                    <div>
+                                        <div class="card-label">HOLDER</div>
+                                        <div class="card-val" id="card-holder-lbl">John Doe</div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div class="card-label">MOCK BALANCE</div>
+                                        <div class="card-val-balance" id="card-balance-lbl">₹45,000.00</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 12px;">
+                                <button class="btn-secondary" id="bank-unlink-btn" style="flex:1; padding: 10px; font-size: 13px; color: var(--danger); border-color: rgba(255, 92, 138, 0.2);">
+                                    <i class="fa-solid fa-link-slash"></i> Unlink Bank
+                                </button>
+                                <button class="btn-primary" id="bank-demo-deposit-btn" style="flex:1.2; padding: 10px; font-size: 13px;">
+                                    <i class="fa-solid fa-indian-rupee-sign"></i> Deposit ₹5,000
+                                </button>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Bank Statement / Transactions</label>
+                                <div class="history-list" id="bank-statement-list" style="max-height: 220px;">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Fullscreen Secure UPI PIN Authentication Dialog -->
+            <div id="pin-auth-modal" class="modal-overlay">
+                <div class="pin-modal-card">
+                    <div class="pin-header">
+                        <div class="pin-lock-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                        <h3>FlashDash Secure Pay</h3>
+                        <p id="pin-modal-amount-lbl">Authorizing transaction of ₹120.00</p>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top:4px;" id="pin-modal-bank-lbl">From HDFC Bank (****4921)</div>
+                    </div>
+
+                    <!-- Visual Dots of input PIN -->
+                    <div class="pin-dots-container">
+                        <div class="pin-dot" id="pin-dot-1"></div>
+                        <div class="pin-dot" id="pin-dot-2"></div>
+                        <div class="pin-dot" id="pin-dot-3"></div>
+                        <div class="pin-dot" id="pin-dot-4"></div>
+                    </div>
+
+                    <!-- Error badge on wrong pin -->
+                    <div class="pin-error-msg" id="pin-error-badge">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Incorrect PIN. Please try again.
+                    </div>
+
+                    <!-- Onscreen Numeric Keypad -->
+                    <div class="numeric-keypad">
+                        <button class="key-btn" data-key="1">1</button>
+                        <button class="key-btn" data-key="2">2</button>
+                        <button class="key-btn" data-key="3">3</button>
+                        <button class="key-btn" data-key="4">4</button>
+                        <button class="key-btn" data-key="5">5</button>
+                        <button class="key-btn" data-key="6">6</button>
+                        <button class="key-btn" data-key="7">7</button>
+                        <button class="key-btn" data-key="8">8</button>
+                        <button class="key-btn" data-key="9">9</button>
+                        <button class="key-btn danger-key" data-key="clear"><i class="fa-solid fa-trash-can"></i></button>
+                        <button class="key-btn" data-key="0">0</button>
+                        <button class="key-btn backspace-key" data-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
+                    </div>
+
+                    <div style="display: flex; gap:12px; margin-top:20px; width:100%;">
+                        <button class="btn-secondary" id="pin-cancel-btn" style="flex:1; padding: 12px; font-size:14px;">Cancel</button>
+                        <button class="btn-primary" id="pin-submit-btn" style="flex:1.5; padding: 12px; font-size:14px; background: var(--secondary); color:#000;">
+                            Confirm Pay <i class="fa-solid fa-lock"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Toast Notification -->
+            <div id="toast-notification" class="notification-banner">
+                <i class="fa-solid fa-circle-check" style="font-size: 20px; color: var(--secondary);"></i>
+                <div id="toast-text" style="font-size: 14px; font-weight: 500;">Booking Confirmed!</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Leaflet.js Map script library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- App Logic Script -->
+    <script src="app.js"></script>
+</body>
+</html>
